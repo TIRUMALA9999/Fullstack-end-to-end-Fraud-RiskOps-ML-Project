@@ -57,5 +57,36 @@ services:
       start_period: 15s
 
 
+  dashboard:
+    build:
+      context: ./apps/dashboard
+
+    restart: unless-stopped
+
+    environment:
+      API_BASE_URL: http://api:8000
+
+    ports:
+      - "127.0.0.1:8501:8501"
+
+    volumes:
+      - ./apps/dashboard:/app
+
+    depends_on:
+      api:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+
 volumes:
   postgres_data:
