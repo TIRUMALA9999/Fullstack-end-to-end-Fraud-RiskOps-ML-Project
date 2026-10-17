@@ -1,6 +1,6 @@
 from alembic import context
 
-from main import engine
+from database import engine
 from models import Base
 
 config = context.config

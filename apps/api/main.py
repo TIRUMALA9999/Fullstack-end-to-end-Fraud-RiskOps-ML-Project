@@ -1,48 +1,27 @@
-import os
-
 from fastapi import FastAPI, HTTPException
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from database import engine
+from routers.transactions import router as transactions_router
 
-# -------------------------------------------------
-# Database configuration
-# -------------------------------------------------
-
-database_url = URL.create(
-    drivername="postgresql+psycopg",
-    username=os.environ.get("POSTGRES_USER", "fraudguard"),
-    password=os.environ.get("POSTGRES_PASSWORD", ""),
-    host=os.environ.get("POSTGRES_HOST", "db"),
-    port=5432,
-    database=os.environ.get("POSTGRES_DB", "fraudguard"),
-)
-
-engine = create_engine(
-    database_url,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=5,
-)
-
-
-# -------------------------------------------------
-# FastAPI application
-# -------------------------------------------------
 
 app = FastAPI(
     title="FraudGuard RiskOps API",
     description="Enterprise Fraud Detection and Risk Operations",
-    version="0.1.0",
+    version="0.2.0",
 )
+
+
+# Register API routers
+app.include_router(transactions_router)
 
 
 @app.get("/")
 def root():
     return {
         "application": "FraudGuard RiskOps",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "message": "Fraud detection backend is running",
     }
 
