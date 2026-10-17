@@ -8,3 +8,13 @@ __pycache__/
 *.log
 .vscode/
 .DS_Store
+# Raw and processed ML datasets
+data/raw/
+data/processed/
+
+# Dataset archives
+*.zip
+
+# Local credentials
+.kaggle/
+kaggle.json

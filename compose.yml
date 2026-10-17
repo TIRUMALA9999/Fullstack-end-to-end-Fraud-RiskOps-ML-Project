@@ -86,6 +86,26 @@ services:
       timeout: 3s
       retries: 5
       start_period: 15s
+  
+  pipeline:
+    build:
+      context: ./pipelines
+
+    profiles:
+      - etl
+
+    volumes:
+      - ./data:/data
+
+    working_dir: /app
+
+    command:
+      - python
+      - ingest_paysim.py
+      - --input
+      - /data/raw/paysim/PS_20174392719_1491204439457_log.csv
+      - --output
+      - /data/processed/paysim/v1
 
 
 volumes:
