@@ -18,3 +18,5 @@ data/processed/
 # Local credentials
 .kaggle/
 kaggle.json
+# Generated exploratory analysis
+data/reports/
