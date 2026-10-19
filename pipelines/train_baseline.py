@@ -35,6 +35,7 @@ def load_partition(
     split: str,
     negative_rate: float = 0.05,
     seed: int = SEED,
+    include_source_step: bool = False,
 ):
     """Read train or validation data using bounded Parquet batches."""
 
@@ -149,9 +150,16 @@ def load_partition(
                     1.0 / negative_rate,
                 )
             else:
-                # Never downsample validation.
+                # Preserve chronological metadata only when requested.
+                selected_columns = FEATURES + [LABEL]
+
+                if include_source_step:
+                    selected_columns = selected_columns + [
+                        "source_step"
+                    ]
+
                 selected = frame.loc[
-                    :, FEATURES + [LABEL]
+                    :, selected_columns
                 ].copy()
 
             if not selected.empty:
