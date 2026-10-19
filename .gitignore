@@ -20,3 +20,4 @@ data/processed/
 kaggle.json
 # Generated exploratory analysis
 data/reports/
+data/model_ready/
