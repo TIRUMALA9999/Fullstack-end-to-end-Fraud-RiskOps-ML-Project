@@ -7,6 +7,11 @@ import mlflow
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
+import pyarrow as pa
+
+# Limit PyArrow parallelism to reduce memory pressure
+pa.set_cpu_count(1)
+pa.set_io_thread_count(1)
 
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
@@ -66,7 +71,11 @@ def load_partition(
     validation_end = manifest["validation_end_step"]
 
     for path in files:
-        parquet = pq.ParquetFile(path)
+        parquet = pq.ParquetFile(
+            path,
+            pre_buffer=False,
+            memory_map=False,
+        )
 
         if not set(READ_COLUMNS).issubset(
             parquet.schema_arrow.names
@@ -74,8 +83,9 @@ def load_partition(
             raise ValueError("Required columns missing")
 
         for batch in parquet.iter_batches(
-            batch_size=100_000,
+            batch_size=10_000,
             columns=READ_COLUMNS,
+            use_threads=False,
         ):
             frame = batch.to_pandas()
 
