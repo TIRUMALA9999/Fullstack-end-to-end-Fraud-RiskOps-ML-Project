@@ -34,12 +34,18 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?Required}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
       POSTGRES_DB: ${POSTGRES_DB:?Required}
+      FRAUDGUARD_RELEASE_DIR: /opt/fraudguard/release
+      FRAUDGUARD_SHADOW_API_KEY: ${FRAUDGUARD_SHADOW_API_KEY:-}
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
 
     ports:
       - "127.0.0.1:8000:8000"
 
     volumes:
       - ./apps/api:/app
+      - ./data/models/paysim/releases/lightgbm-shadow-v1:/opt/fraudguard/release:ro
 
     depends_on:
       db:

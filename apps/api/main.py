@@ -16,6 +16,10 @@ app = FastAPI(
 # Register API routers
 app.include_router(transactions_router)
 
+from shadow_inference import router as shadow_router
+
+app.include_router(shadow_router)
+
 
 @app.get("/")
 def root():
