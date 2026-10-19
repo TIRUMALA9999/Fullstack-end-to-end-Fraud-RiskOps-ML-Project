@@ -21,3 +21,6 @@ kaggle.json
 # Generated exploratory analysis
 data/reports/
 data/model_ready/
+# Generated ML artifacts
+data/models/
+data/experiments/
