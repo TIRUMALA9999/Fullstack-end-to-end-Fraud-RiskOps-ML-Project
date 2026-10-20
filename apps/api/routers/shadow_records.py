@@ -5,6 +5,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
+from fastapi import Query
+from sqlalchemy import func
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -296,3 +299,134 @@ def get_recorded_prediction(
         )
 
     return serialize_record(record)
+
+
+class ShadowPredictionListResponse(BaseModel):
+    items: list[StoredShadowResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ShadowSummaryResponse(BaseModel):
+    total_predictions: int
+    review_count: int
+    no_review_count: int
+    review_rate: float
+    average_score: float | None
+
+
+@router.get(
+    "/predictions",
+    response_model=ShadowPredictionListResponse,
+)
+def list_shadow_predictions(
+    db: DbSession,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    decision: str | None = Query(default=None),
+):
+    if decision not in (None, "REVIEW", "NO_REVIEW"):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid decision filter",
+        )
+
+    filters = []
+
+    if decision is not None:
+        filters.append(
+            ShadowPrediction.decision == decision
+        )
+
+    count_query = (
+        select(func.count())
+        .select_from(ShadowPrediction)
+        .where(*filters)
+    )
+
+    records_query = (
+        select(ShadowPrediction)
+        .where(*filters)
+        .order_by(
+            ShadowPrediction.created_at.desc(),
+            ShadowPrediction.id.desc(),
+        )
+        .limit(limit)
+        .offset(offset)
+    )
+
+    try:
+        total = int(db.scalar(count_query) or 0)
+        records = db.scalars(records_query).all()
+    except SQLAlchemyError:
+        logger.exception("Prediction history lookup failed")
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Prediction history unavailable",
+        )
+
+    return {
+        "items": [
+            serialize_record(record)
+            for record in records
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get(
+    "/summary",
+    response_model=ShadowSummaryResponse,
+)
+def get_shadow_summary(db: DbSession):
+    try:
+        total = int(
+            db.scalar(
+                select(func.count())
+                .select_from(ShadowPrediction)
+            ) or 0
+        )
+
+        review_count = int(
+            db.scalar(
+                select(func.count())
+                .select_from(ShadowPrediction)
+                .where(
+                    ShadowPrediction.decision == "REVIEW"
+                )
+            ) or 0
+        )
+
+        average_score = db.scalar(
+            select(
+                func.avg(
+                    ShadowPrediction.calibrated_score
+                )
+            )
+        )
+
+    except SQLAlchemyError:
+        logger.exception("Shadow analytics query failed")
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Shadow analytics unavailable",
+        )
+
+    return {
+        "total_predictions": total,
+        "review_count": review_count,
+        "no_review_count": total - review_count,
+        "review_rate": (
+            review_count / total if total else 0.0
+        ),
+        "average_score": (
+            float(average_score)
+            if average_score is not None
+            else None
+        ),
+    }
