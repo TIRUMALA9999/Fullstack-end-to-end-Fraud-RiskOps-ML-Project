@@ -20,6 +20,10 @@ from shadow_inference import router as shadow_router
 
 app.include_router(shadow_router)
 
+from routers.shadow_records import router as shadow_records_router
+
+app.include_router(shadow_records_router)
+
 
 @app.get("/")
 def root():

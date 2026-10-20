@@ -235,3 +235,124 @@ class AuditEvent(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+    # --------------------------------------------------
+# 5. PaySim Synthetic Shadow Predictions
+# --------------------------------------------------
+
+class ShadowPrediction(Base):
+    __tablename__ = "shadow_predictions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    reference_id: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        unique=True,
+    )
+
+    source_dataset: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+    )
+
+    amount_unit: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(28, 12),
+        nullable=False,
+    )
+
+    transaction_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    calibrated_score: Mapped[Decimal] = mapped_column(
+        Numeric(24, 20),
+        nullable=False,
+    )
+
+    review_threshold: Mapped[Decimal] = mapped_column(
+        Numeric(24, 20),
+        nullable=False,
+    )
+
+    decision: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+    )
+
+    model_version: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    model_run_id: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    deployment_mode: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "amount > 0",
+            name="ck_shadow_amount_positive",
+        ),
+        CheckConstraint(
+            "source_dataset = 'PAYSIM'",
+            name="ck_shadow_source_dataset",
+        ),
+        CheckConstraint(
+            "amount_unit = 'PAYSIM_SYNTHETIC_UNITS'",
+            name="ck_shadow_amount_unit",
+        ),
+        CheckConstraint(
+            "transaction_type IN "
+            "('TRANSFER', 'CASH_OUT', 'CASH_IN', "
+            "'PAYMENT', 'DEBIT')",
+            name="ck_shadow_transaction_type",
+        ),
+        CheckConstraint(
+            "calibrated_score BETWEEN 0 AND 1",
+            name="ck_shadow_score_range",
+        ),
+        CheckConstraint(
+            "review_threshold BETWEEN 0 AND 1",
+            name="ck_shadow_threshold_range",
+        ),
+        CheckConstraint(
+            "decision IN ('REVIEW', 'NO_REVIEW')",
+            name="ck_shadow_decision",
+        ),
+        CheckConstraint(
+            "deployment_mode = 'SHADOW_ONLY'",
+            name="ck_shadow_deployment_mode",
+        ),
+        Index(
+            "ix_shadow_predictions_created_at",
+            "created_at",
+        ),
+        Index(
+            "ix_shadow_predictions_decision_created_at",
+            "decision",
+            "created_at",
+        ),
+    )
