@@ -36,7 +36,7 @@ data "aws_iam_policy_document" "github_ecr_assume" {
       variable = "token.actions.githubusercontent.com:sub"
 
       values = [
-        "repo:TIRUMALA9999/Fullstack-end-to-end-Fraud-RiskOps-ML-Project:ref:refs/heads/main"
+        "repo:TIRUMALA9999@102666177/Fullstack-end-to-end-Fraud-RiskOps-ML-Project@1427240250:ref:refs/heads/main"
       ]
     }
   }
@@ -68,6 +68,7 @@ data "aws_iam_policy_document" "github_ecr_push" {
       "ecr:BatchCheckLayerAvailability",
       "ecr:BatchGetImage",
       "ecr:CompleteLayerUpload",
+      "ecr:DescribeImages",
       "ecr:GetDownloadUrlForLayer",
       "ecr:InitiateLayerUpload",
       "ecr:PutImage",
