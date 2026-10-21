@@ -6,7 +6,7 @@ import pytest
 from ingest_paysim import ingest_file
 
 
-def test_create_dataset(tmp_path):
+def create_test_dataset(tmp_path):
     source = tmp_path / "sample.csv"
 
     data = pd.DataFrame({
