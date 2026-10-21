@@ -42,6 +42,25 @@ resource "aws_security_group" "app" {
   vpc_id      = aws_vpc.fraudguard.id
 
   # Deliberately NO ingress rules; SSH/HTTP/Streamlit are not public.
+
+  # Public HTTP for HTTPS redirects and certificate validation.
+  ingress {
+    description = "Public HTTP - Caddy"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Public HTTPS for authenticated FraudGuard dashboard.
+  ingress {
+    description = "Public HTTPS - Caddy"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     description = "Allow outbound access for SSM, updates, and ECR"
     from_port   = 0
