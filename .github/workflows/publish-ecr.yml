@@ -109,3 +109,114 @@ jobs:
           echo "Commit: ${IMAGE_TAG}" >> "$GITHUB_STEP_SUMMARY"
           echo "Images: API and dashboard" >> "$GITHUB_STEP_SUMMARY"
           echo "AWS region: ${AWS_REGION}" >> "$GITHUB_STEP_SUMMARY"
+  
+  deploy-ec2:
+    name: Deploy FraudGuard to EC2
+    needs: publish-images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    permissions:
+      contents: read
+      id-token: write
+
+    concurrency:
+      group: fraudguard-ec2-deployment
+      cancel-in-progress: false
+
+    env:
+      AWS_REGION: us-east-1
+      INSTANCE_ID: i-0be8e0e32d98589ea
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Confirm tested commit is still main
+        id: verify-head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          CURRENT_SHA="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/commits/main" \
+            --jq .sha)"
+
+          if [[ "$CURRENT_SHA" == "$IMAGE_TAG" ]]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping outdated commit: $IMAGE_TAG"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Authenticate to AWS using OIDC
+        if: steps.verify-head.outputs.deploy == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::890028163411:role/fraudguard-riskops-dev-github-ssm-deploy
+          aws-region: us-east-1
+          role-session-name: fraudguard-github-deploy
+
+      - name: Deploy using AWS Systems Manager
+        if: steps.verify-head.outputs.deploy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]
+
+          PARAMETERS="$(printf \
+            '{"commands":["/opt/fraudguard/deploy.sh %s"],"executionTimeout":["900"]}' \
+            "$IMAGE_TAG")"
+
+          COMMAND_ID="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --parameters "$PARAMETERS" \
+            --region "$AWS_REGION" \
+            --query 'Command.CommandId' \
+            --output text)"
+
+          echo "SSM Command ID: $COMMAND_ID"
+
+          for attempt in $(seq 1 100); do
+            STATUS="$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --region "$AWS_REGION" \
+              --query Status \
+              --output text 2>/dev/null || echo Pending)"
+
+            echo "Deployment status: $STATUS"
+
+            case "$STATUS" in
+              Success)
+                aws ssm get-command-invocation \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$INSTANCE_ID" \
+                  --query StandardOutputContent \
+                  --output text
+
+                echo "Deployment successful: $IMAGE_TAG"
+                exit 0
+                ;;
+
+              Failed|Cancelled|TimedOut)
+                aws ssm get-command-invocation \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$INSTANCE_ID" \
+                  --query '[StandardOutputContent,StandardErrorContent]' \
+                  --output text
+
+                echo "Deployment failed."
+                exit 1
+                ;;
+
+              *)
+                sleep 10
+                ;;
+            esac
+          done
+
+          echo "Timed out waiting for deployment."
+          exit 1
+
