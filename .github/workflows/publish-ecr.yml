@@ -1,0 +1,111 @@
+
+name: FraudGuard Publish ECR
+
+on:
+  workflow_run:
+    workflows:
+      - FraudGuard CI
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  publish-images:
+    name: Publish API and Dashboard to ECR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    # Only publish successful CI runs originating
+    # from a push to main in our own repository.
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      AWS_REGION: us-east-1
+      AWS_ROLE_ARN: arn:aws:iam::890028163411:role/fraudguard-riskops-dev-github-ecr-push
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: fraudguard-github-ecr
+
+      - name: Verify AWS account
+        run: |
+          test "$(aws sts get-caller-identity --query Account --output text)" = "890028163411"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and publish API and Dashboard
+        shell: bash
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+
+          for SERVICE in api dashboard; do
+            REPO="fraudguard-riskops/${SERVICE}"
+            IMAGE="${ECR_REGISTRY}/${REPO}:${IMAGE_TAG}"
+
+            echo "Checking image: ${IMAGE}"
+
+            if aws ecr describe-images \
+              --region "$AWS_REGION" \
+              --repository-name "$REPO" \
+              --image-ids "imageTag=${IMAGE_TAG}" \
+              >/dev/null 2>&1; then
+              echo "Image already exists; skipping."
+              continue
+            fi
+
+            echo "Building ${SERVICE}..."
+            docker build --pull \
+              --file "apps/${SERVICE}/Dockerfile" \
+              --tag "$IMAGE" \
+              "apps/${SERVICE}"
+
+            echo "Pushing ${SERVICE}..."
+            docker push "$IMAGE"
+          done
+
+      - name: Verify both published images
+        run: |
+          set -euo pipefail
+
+          for SERVICE in api dashboard; do
+            aws ecr describe-images \
+              --region "$AWS_REGION" \
+              --repository-name "fraudguard-riskops/${SERVICE}" \
+              --image-ids "imageTag=${IMAGE_TAG}" \
+              --query "imageDetails[0].imageDigest" \
+              --output text
+          done
+
+      - name: Publishing summary
+        run: |
+          echo "### FraudGuard ECR Publishing" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: ${IMAGE_TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Images: API and dashboard" >> "$GITHUB_STEP_SUMMARY"
+          echo "AWS region: ${AWS_REGION}" >> "$GITHUB_STEP_SUMMARY"

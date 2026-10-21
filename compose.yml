@@ -35,7 +35,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
       POSTGRES_DB: ${POSTGRES_DB:?Required}
       FRAUDGUARD_RELEASE_DIR: /opt/fraudguard/release
-      FRAUDGUARD_SHADOW_API_KEY: ${FRAUDGUARD_SHADOW_API_KEY:-}
+      FRAUDGUARD_SHADOW_API_KEY: ${FRAUDGUARD_SHADOW_API_KEY:?Shadow API key is required}
       OPENBLAS_NUM_THREADS: "1"
       OMP_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
@@ -70,7 +70,9 @@ services:
     restart: unless-stopped
 
     environment:
-      API_BASE_URL: http://api:8000
+      FRAUDGUARD_API_URL: http://api:8000
+      FRAUDGUARD_SHADOW_API_KEY: ${FRAUDGUARD_SHADOW_API_KEY:?Shadow API key is required}
+      
 
     ports:
       - "127.0.0.1:8501:8501"
