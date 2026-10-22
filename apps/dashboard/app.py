@@ -19,7 +19,7 @@ from api_client import (
 # ==================================================
 
 st.set_page_config(
-    page_title="FraudGuard RiskOps",
+    page_title="FraudGuard Teja RiskOps",
     page_icon="🛡️",
     layout="wide",
 )
